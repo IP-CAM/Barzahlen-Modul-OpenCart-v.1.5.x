@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<project name="opencart-barzahlen">
+
+    <property file="build.properties" />
+    <property file="deploy.properties" />
+
+    <target name="build" depends="prepare,bundle"/>
+    <target name="deploy" depends="prepare-deploy,deploy-shopsystem,deploy-config,deploy-shopplugin,deploy-shopsystem-database,deploy-plugin-database"/>
+    <target name="test" depends="prepare,lint,phpunit"/>
+    <target name="analysis" depends="prepare,test,phpcs,phploc,pdepend,phpmd,phpcpd,phpdox,phpcb"/>
+
+    <target name="clean">
+        <delete dir="${basedir}/build" includeemptydirs="true"/>
+    </target>
+
+    <target name="prepare" depends="clean">
+        <mkdir dir="${basedir}/build/api"/>
+        <mkdir dir="${basedir}/build/bundle"/>
+        <mkdir dir="${basedir}/build/code-browser"/>
+        <mkdir dir="${basedir}/build/coverage"/>
+        <mkdir dir="${basedir}/build/integration"/>
+        <mkdir dir="${basedir}/build/logs"/>
+        <mkdir dir="${basedir}/build/pdepend"/>
+        <mkdir dir="${basedir}/build/phpdox"/>
+    </target>
+
+    <target name="clean-deploy">
+        <delete dir="${basedir}/build/deploy" includeemptydirs="true"/>
+    </target>
+
+    <target name="prepare-deploy" depends="clean-deploy">
+        <mkdir dir="${basedir}/build/deploy/opencart"/>
+        <mkdir dir="${basedir}/build/deploy/plugin"/>
+    </target>
+
+    <target name="deploy-shopsystem">
+        <unzip src="${basedir}/test/resources/opencart/v1.5.5.1.zip" dest="${basedir}/build/deploy/opencart"/>
+        <copy todir="${deploy.target}">
+            <fileset dir="${basedir}/build/deploy/opencart/opencart-1.5.5.1/upload"/>
+        </copy>
+        <chmod perm="ugo+rwx" type="both">
+            <fileset dir="${deploy.target}/system/cache"/>
+            <fileset dir="${deploy.target}/system/logs/"/>
+            <fileset dir="${deploy.target}/image"/>
+            <fileset dir="${deploy.target}/download"/>
+        </chmod>
+    </target>
+
+    <target name="deploy-config">
+        <copy todir="${deploy.target}">
+            <fileset dir="${basedir}/test/resources/config"/>
+        </copy>
+        <chmod perm="ugo+rwx" type="both">
+            <fileset dir="${deploy.target}">
+                <include name="config.php"/>
+                <include name="admin/config.php"/>
+            </fileset>
+        </chmod>
+        <chmod perm="ug+rwx" type="both">
+            <fileset dir="${deploy.target}">
+                <include name="**/*"/>
+            </fileset>
+        </chmod>
+    </target>
+
+    <target name="deploy-shopplugin">
+        <unzip src="${basedir}/build/barzahlen_opencart_plugin_${project.version.number_file}.zip" dest="${basedir}/build/deploy/plugin"/>
+        <copy todir="${deploy.target}">
+            <fileset dir="${basedir}/build/deploy/plugin/src"/>
+        </copy>
+    </target>
+
+    <target name="deploy-shopsystem-database">
+        <exec executable="mysqladmin">
+            <arg value="--host=${db.host}"/>
+            <arg value="--user=${db.user}"/>
+            <arg value="--password=${db.password}"/>
+            <arg value="--force"/>
+            <arg value="drop"/>
+            <arg value="${db.name}"/>
+        </exec>
+        <exec executable="mysqladmin">
+            <arg value="--host=${db.host}"/>
+            <arg value="--user=${db.user}"/>
+            <arg value="--password=${db.password}"/>
+            <arg value="--force"/>
+            <arg value="create"/>
+            <arg value="${db.name}"/>
+        </exec>
+        <exec executable="mysql" input="${basedir}/test/resources/sql/opencart/v1.5.5.1.sql">
+            <arg value="--host=${db.host}"/>
+            <arg value="--user=${db.user}"/>
+            <arg value="--password=${db.password}"/>
+            <arg value="${db.name}"/>
+        </exec>
+    </target>
+
+    <target name="deploy-plugin-database">
+        <exec executable="mysql" input="${basedir}/test/resources/sql/plugin/v1.0.0.sql">
+            <arg value="--host=${db.host}"/>
+            <arg value="--user=${db.user}"/>
+            <arg value="--password=${db.password}"/>
+            <arg value="${db.name}"/>
+        </exec>
+    </target>
+
+    <target name="lint">
+        <apply executable="php" failonerror="true">
+            <arg value="-l"/>
+
+            <fileset dir="${basedir}/src/">
+                <include name="**/*.php"/>
+                <modified/>
+            </fileset>
+
+            <fileset dir="${basedir}/test/">
+                <include name="**/*.php"/>
+                <modified/>
+            </fileset>
+        </apply>
+    </target>
+
+    <target name="phpunit">
+        <exec executable="phpunit" failonerror="true"/>
+    </target>
+
+    <target name="bundle" depends="prepare">
+        <copy todir="${basedir}/build/bundle">
+            <fileset dir="${basedir}">
+                <include name="changelog.txt"/>
+                <include name="license.txt"/>
+                <include name="readme.txt"/>
+            </fileset>
+        </copy>
+
+        <copy todir="${basedir}/build/bundle/src">
+            <fileset dir="${basedir}/src"/>
+        </copy>
+        <zip basedir="${basedir}/build/bundle" destfile="${basedir}/build/barzahlen_opencart_plugin_${project.version.number_file}.zip"/>
+    </target>
+
+    <target name="integration">
+        <exec dir="${basedir}/test/selenium" executable="mvn" failonerror="true">
+            <arg line="clean integration-test" />
+        </exec>
+        <copy todir="${basedir}/build/integration/surefire-reports">
+            <fileset dir="${basedir}/test/selenium/target/surefire-reports"/>
+        </copy>
+    </target>
+
+    <target name="phploc">
+        <exec executable="phploc">
+            <arg value="--log-csv"/>
+            <arg value="${basedir}/build/logs/phploc.csv"/>
+            <arg path="${basedir}/src/admin"/>
+            <arg path="${basedir}/src/catalog"/>
+        </exec>
+    </target>
+
+    <target name="phpcs"
+            description="Find coding standard violations using PHP_CodeSniffer creating a log file for the continuous integration server">
+        <exec executable="phpcs" output="/dev/null">
+            <arg value="--report=checkstyle"/>
+            <arg value="--report-file=${basedir}/build/logs/checkstyle.xml"/>
+            <arg value="--standard=PSR2"/>
+            <arg path="${basedir}/src/admin"/>
+            <arg path="${basedir}/src/catalog"/>
+        </exec>
+    </target>
+
+    <target name="pdepend">
+        <exec executable="pdepend">
+            <arg value="--jdepend-chart=${basedir}/build/pdepend/dependencies.svg"/>
+            <arg value="--jdepend-xml=${basedir}/build/logs/jdepend.xml"/>
+            <arg value="--overview-pyramid=${basedir}/build/pdepend/overview-pyramid.svg"/>
+            <arg path="${basedir}/src/admin,${basedir}/src/catalog"/>
+        </exec>
+    </target>
+
+    <target name="phpmd"
+            description="Perform project mess detection using PHPMD creating a log file for the continuous integration server">
+        <exec executable="phpmd">
+            <arg path="${basedir}/src/admin,${basedir}/src/catalog"/>
+            <arg value="xml"/>
+            <arg value="${basedir}/phpmd.xml"/>
+            <arg value="--reportfile"/>
+            <arg value="${basedir}/build/logs/pmd.xml"/>
+        </exec>
+    </target>
+
+    <target name="phpcpd">
+        <exec executable="phpcpd">
+            <arg value="--log-pmd"/>
+            <arg value="${basedir}/build/logs/pmd-cpd.xml"/>
+            <arg path="${basedir}/src/admin"/>
+            <arg path="${basedir}/src/catalog"/>
+        </exec>
+    </target>
+
+    <target name="phpdox">
+        <exec executable="phpdox"/>
+    </target>
+
+    <target name="phpcb">
+        <exec executable="phpcb">
+            <arg value="--log"/>
+            <arg path="${basedir}/build/logs"/>
+            <arg value="--source"/>
+            <arg path="${basedir}/src/admin"/>
+            <arg value="--source"/>
+            <arg path="${basedir}/src/catalog"/>
+            <arg value="--output"/>
+            <arg path="${basedir}/build/code-browser"/>
+        </exec>
+    </target>
+</project>
