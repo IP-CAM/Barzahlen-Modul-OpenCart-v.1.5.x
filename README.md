@@ -1,12 +1,14 @@
-==Title==
-Barzahlen Payment Module (OpenCart)
+# Barzahlen Payment Module (OpenCart)
 
-==Copyright==
+## Deprecation Notice
+This module is no longer maintained and should not be used for new projects.
+
+## Copyright
 (c) 2013, Zerebro Internet GmbH
-http://www.barzahlen.de
+https://www.barzahlen.de
 
-==Current Version==
+## Current Version
 1.0.0
 
-==User Manual==
+## User Manual
 https://integration.barzahlen.de/de/shopsysteme/contao/opencart
